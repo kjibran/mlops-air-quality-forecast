@@ -1,20 +1,36 @@
 import argparse
-from datetime import UTC, datetime
+import time
+from datetime import UTC, datetime, timedelta
 
 from mlops_air_quality_forecast.config import settings
 from mlops_air_quality_forecast.openaq import fetch_no2_hours
 from mlops_air_quality_forecast.store import upsert_no2
 
+
+def month_windows(start: datetime, end: datetime):
+    """Split a date range into calendar-month chunks."""
+    current = start
+    while current < end:
+        next_month = (current.replace(day=1) + timedelta(days=32)).replace(day=1)
+        yield current, min(next_month, end)
+        current = next_month
+
+
 parser = argparse.ArgumentParser(
     description="Fetch hourly NO2 from OpenAQ into the database."
 )
-parser.add_argument("--start", required=True, help="UTC date, e.g. 2026-09-25")
-parser.add_argument("--end", required=True, help="UTC date, e.g. 2026-10-02")
+parser.add_argument("--start", required=True, help="UTC date, e.g. 2019-01-01")
+parser.add_argument("--end", required=True, help="UTC date, e.g. 2026-10-03")
 args = parser.parse_args()
 
 start = datetime.fromisoformat(args.start).replace(tzinfo=UTC)
 end = datetime.fromisoformat(args.end).replace(tzinfo=UTC)
 
-rows = fetch_no2_hours(settings.no2_sensor_id, start, end)
-print(f"Fetched {len(rows)} hours from OpenAQ")
-print(f"Upserted {upsert_no2(rows)} rows into no2_hourly")
+total = 0
+for window_start, window_end in month_windows(start, end):
+    rows = fetch_no2_hours(settings.no2_sensor_id, window_start, window_end)
+    total += upsert_no2(rows)
+    print(f"{window_start:%Y-%m}: {len(rows)} hours")
+    time.sleep(1)
+
+print(f"Done. Upserted {total} rows in total.")

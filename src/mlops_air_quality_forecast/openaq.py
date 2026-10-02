@@ -14,6 +14,26 @@ def _ts(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+RETRY_STATUSES = {408, 429, 500, 502, 503, 504}
+
+
+def _get_with_retry(client: httpx.Client, url: str, params: dict, attempts: int = 4):
+    """GET with retries for timeouts, rate limits, and server errors."""
+    for attempt in range(attempts):
+        try:
+            response = client.get(url, params=params)
+            if response.status_code not in RETRY_STATUSES:
+                response.raise_for_status()
+                return response
+            reason = f"HTTP {response.status_code}"
+        except httpx.TimeoutException:
+            reason = "client timeout"
+        wait = 5 * 2**attempt  # 5, 10, 20, 40 seconds
+        print(f"  {reason}, retrying in {wait}s")
+        time.sleep(wait)
+    raise RuntimeError(f"OpenAQ request failed after {attempts} attempts: {url}")
+
+
 def fetch_no2_hours(sensor_id: int, start: datetime, end: datetime) -> list[dict]:
     """Fetch hourly NO2 values for one sensor between start and end (UTC)."""
     rows = []
@@ -21,7 +41,8 @@ def fetch_no2_hours(sensor_id: int, start: datetime, end: datetime) -> list[dict
     headers = {"X-API-Key": settings.openaq_api_key}
     with httpx.Client(timeout=60, headers=headers) as client:
         while True:
-            response = client.get(
+            response = _get_with_retry(
+                client,
                 f"{BASE_URL}/sensors/{sensor_id}/hours",
                 params={
                     "datetime_from": _ts(start),
@@ -30,7 +51,6 @@ def fetch_no2_hours(sensor_id: int, start: datetime, end: datetime) -> list[dict
                     "page": page,
                 },
             )
-            response.raise_for_status()
             results = response.json().get("results", [])
             for r in results:
                 rows.append(
