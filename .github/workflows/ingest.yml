@@ -1,4 +1,4 @@
-name: Hourly ingest
+name: Hourly ingest and score
 
 on:
   schedule:
@@ -23,3 +23,11 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
         run: uv run --no-dev python scripts/update.py
+      - name: Score the next 24 hours
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: uv run --no-dev python scripts/score.py
+      
