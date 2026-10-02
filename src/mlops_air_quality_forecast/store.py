@@ -1,3 +1,5 @@
+import pandas as pd
+
 from mlops_air_quality_forecast.db import connect
 
 UPSERT_NO2 = """
@@ -45,4 +47,43 @@ def upsert_no2(rows: list[dict]) -> int:
         return 0
     with connect() as conn, conn.cursor() as cur:
         cur.executemany(UPSERT_NO2, rows)
+    return len(rows)
+
+
+def read_no2(sensor_id: int, since) -> pd.DataFrame:
+    """NO2 hours for one sensor from `since` onwards."""
+    with connect() as conn:
+        cur = conn.execute(
+            "select observed_at, value_ugm3 from no2_hourly "
+            "where sensor_id = %s and observed_at >= %s order by observed_at",
+            (sensor_id, since),
+        )
+        df = pd.DataFrame(cur.fetchall(), columns=["observed_at", "value_ugm3"])
+    df["observed_at"] = pd.to_datetime(df["observed_at"], utc=True)
+    df["value_ugm3"] = df["value_ugm3"].astype(float)
+    return df
+
+
+UPSERT_PREDICTIONS = """
+insert into predictions (
+    location_key, issue_time, horizon, target_time, predicted_ugm3, model_version
+)
+values (
+    %(location_key)s, %(issue_time)s, %(horizon)s, %(target_time)s,
+    %(predicted_ugm3)s, %(model_version)s
+)
+on conflict (location_key, issue_time, horizon) do update set
+    target_time = excluded.target_time,
+    predicted_ugm3 = excluded.predicted_ugm3,
+    model_version = excluded.model_version,
+    created_at = now()
+"""
+
+
+def upsert_predictions(rows: list[dict]) -> int:
+    """Write one forecast run. Re-running the same issue time replaces it."""
+    if not rows:
+        return 0
+    with connect() as conn, conn.cursor() as cur:
+        cur.executemany(UPSERT_PREDICTIONS, rows)
     return len(rows)

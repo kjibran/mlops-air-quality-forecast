@@ -81,3 +81,40 @@ def fetch_weather_forecast_day1(
             row[var] = hourly[f"{var}_previous_day1"][i]
         rows.append(row)
     return rows
+
+
+FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+
+
+def fetch_weather_forecast_live(
+    lat: float, lon: float, location_key: str
+) -> list[dict]:
+    """The latest hourly weather forecast, from yesterday to two days ahead."""
+    response = httpx.get(
+        FORECAST_URL,
+        params={
+            "latitude": lat,
+            "longitude": lon,
+            "hourly": ",".join(FORECAST_VARS),
+            "wind_speed_unit": "ms",
+            "timezone": "GMT",
+            "past_days": 1,
+            "forecast_days": 3,
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+    hourly = response.json()["hourly"]
+
+    rows = []
+    for i, timestamp in enumerate(hourly["time"]):
+        row = {
+            "location_key": location_key,
+            "observed_at": f"{timestamp}:00+00:00",
+            "source": "forecast_live",
+            "boundary_layer_height": None,
+        }
+        for var in FORECAST_VARS:
+            row[var] = hourly[var][i]
+        rows.append(row)
+    return rows
