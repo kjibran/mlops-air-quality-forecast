@@ -28,6 +28,10 @@ def export_tables(out_dir: Path) -> dict[str, int]:
 
 
 def publish_snapshot() -> str:
+    if not settings.hf_token:
+        raise RuntimeError(
+            "HF_TOKEN is not set. Add it to .env locally or as a GitHub secret."
+        )
     """Export the database to Parquet, upload to Hugging Face, and tag the commit."""
     tag = f"snapshot-{datetime.now(UTC):%Y%m%d-%H%M}"
     api = HfApi(token=settings.hf_token)
