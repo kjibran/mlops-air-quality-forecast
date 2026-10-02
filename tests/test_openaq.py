@@ -30,7 +30,7 @@ def test_fetches_all_pages_and_keeps_missing_values(monkeypatch):
 
     start = datetime(2026, 1, 1, tzinfo=UTC)
     end = datetime(2026, 1, 2, tzinfo=UTC)
-    rows = openaq.fetch_no2_hours(13371, start, end)
+    rows = openaq.fetch_sensor_hours(13371, start, end)
 
     assert calls == [1, 2]
     assert len(rows) == openaq.PAGE_SIZE + 2

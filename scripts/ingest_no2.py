@@ -3,7 +3,7 @@ import time
 from datetime import UTC, datetime
 
 from mlops_air_quality_forecast.config import settings
-from mlops_air_quality_forecast.openaq import fetch_no2_hours
+from mlops_air_quality_forecast.openaq import fetch_sensor_hours
 from mlops_air_quality_forecast.store import upsert_no2
 from mlops_air_quality_forecast.timewindows import month_windows
 
@@ -19,7 +19,7 @@ end = datetime.fromisoformat(args.end).replace(tzinfo=UTC)
 
 total = 0
 for window_start, window_end in month_windows(start, end):
-    rows = fetch_no2_hours(settings.no2_sensor_id, window_start, window_end)
+    rows = fetch_sensor_hours(settings.no2_sensor_id, window_start, window_end)
     total += upsert_no2(rows)
     print(f"{window_start:%Y-%m}: {len(rows)} hours")
     time.sleep(1)

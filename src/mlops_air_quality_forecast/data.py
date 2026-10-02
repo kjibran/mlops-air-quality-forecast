@@ -14,16 +14,23 @@ def latest_snapshot_tag() -> str:
     return tags[-1]
 
 
+def _load_table(name: str, tag: str) -> pd.DataFrame:
+    """One table exactly as it was at a given snapshot tag."""
+    path = hf_hub_download(
+        repo_id=settings.hf_dataset_repo,
+        repo_type="dataset",
+        filename=f"data/{name}.parquet",
+        revision=tag,
+        token=settings.hf_token or None,
+    )
+    return pd.read_parquet(path)
+
+
 def load_snapshot(tag: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load the NO2 and weather tables exactly as they were at one snapshot."""
-    frames = []
-    for name in ("no2_hourly", "weather_hourly"):
-        path = hf_hub_download(
-            repo_id=settings.hf_dataset_repo,
-            repo_type="dataset",
-            filename=f"data/{name}.parquet",
-            revision=tag,
-            token=settings.hf_token or None,
-        )
-        frames.append(pd.read_parquet(path))
-    return frames[0], frames[1]
+    return _load_table("no2_hourly", tag), _load_table("weather_hourly", tag)
+
+
+def load_background(tag: str) -> pd.DataFrame:
+    """Load the background station pollutants. Only in snapshots from October 2026 onwards."""
+    return _load_table("pollutant_hourly", tag)

@@ -34,7 +34,7 @@ def _get_with_retry(client: httpx.Client, url: str, params: dict, attempts: int 
     raise RuntimeError(f"OpenAQ request failed after {attempts} attempts: {url}")
 
 
-def fetch_no2_hours(sensor_id: int, start: datetime, end: datetime) -> list[dict]:
+def fetch_sensor_hours(sensor_id: int, start: datetime, end: datetime) -> list[dict]:
     """Fetch hourly NO2 values for one sensor between start and end (UTC)."""
     rows = []
     page = 1

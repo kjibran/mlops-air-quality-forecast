@@ -110,3 +110,27 @@ def read_verification(sensor_id: int, location_key: str, days: int) -> list[tupl
         return conn.execute(
             VERIFICATION_SQL, (sensor_id, location_key, days)
         ).fetchall()
+
+
+UPSERT_POLLUTANT = """
+insert into pollutant_hourly (
+    sensor_id, location_id, parameter, observed_at, value_ugm3, coverage_pct
+)
+values (
+    %(sensor_id)s, %(location_id)s, %(parameter)s, %(observed_at)s,
+    %(value_ugm3)s, %(coverage_pct)s
+)
+on conflict (sensor_id, observed_at) do update set
+    value_ugm3 = excluded.value_ugm3,
+    coverage_pct = excluded.coverage_pct,
+    ingested_at = now()
+"""
+
+
+def upsert_pollutant(rows: list[dict]) -> int:
+    """Insert or update auxiliary pollutant hours. Safe to run repeatedly."""
+    if not rows:
+        return 0
+    with connect() as conn, conn.cursor() as cur:
+        cur.executemany(UPSERT_POLLUTANT, rows)
+    return len(rows)

@@ -11,6 +11,7 @@ from mlops_air_quality_forecast.db import connect
 TABLES = {
     "no2_hourly": "select * from no2_hourly order by sensor_id, observed_at",
     "weather_hourly": "select * from weather_hourly order by location_key, source, observed_at",
+    "pollutant_hourly": "select * from pollutant_hourly order by sensor_id, observed_at",
 }
 
 
@@ -28,11 +29,12 @@ def export_tables(out_dir: Path) -> dict[str, int]:
 
 
 def publish_snapshot() -> str:
+    """Export the database to Parquet, upload to Hugging Face, and tag the commit."""
     if not settings.hf_token:
         raise RuntimeError(
             "HF_TOKEN is not set. Add it to .env locally or as a GitHub secret."
         )
-    """Export the database to Parquet, upload to Hugging Face, and tag the commit."""
+
     tag = f"snapshot-{datetime.now(UTC):%Y%m%d-%H%M}"
     api = HfApi(token=settings.hf_token)
 
