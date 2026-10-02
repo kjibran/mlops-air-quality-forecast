@@ -2,7 +2,12 @@ from datetime import UTC, datetime, timedelta
 
 from mlops_air_quality_forecast.config import settings
 from mlops_air_quality_forecast.openaq import fetch_no2_hours
-from mlops_air_quality_forecast.openmeteo import HOURLY_VARS, fetch_weather_archive
+from mlops_air_quality_forecast.openmeteo import (
+    FORECAST_VARS,
+    HOURLY_VARS,
+    fetch_weather_archive,
+    fetch_weather_forecast_day1,
+)
 from mlops_air_quality_forecast.store import upsert_no2, upsert_weather
 
 NO2_WINDOW = timedelta(days=3)
@@ -36,3 +41,18 @@ weather_rows = [
 print(
     f"Weather: {upsert_weather(weather_rows)} hours upserted (last {WEATHER_WINDOW_DAYS} days)"
 )
+
+# Day 1 forecast weather: needed to evaluate models the way they run in production
+forecast_rows = fetch_weather_forecast_day1(
+    settings.station_lat,
+    settings.station_lon,
+    today - timedelta(days=WEATHER_WINDOW_DAYS),
+    today,
+    settings.location_key,
+)
+forecast_rows = [
+    r
+    for r in forecast_rows
+    if r["observed_at"] <= cutoff and any(r[v] is not None for v in FORECAST_VARS)
+]
+print(f"Forecast weather (day 1): {upsert_weather(forecast_rows)} hours upserted")
