@@ -19,3 +19,6 @@ create table weather_hourly (
     ingested_at            timestamptz not null default now(),
     primary key (location_key, observed_at, source)
 );
+
+alter table no2_hourly enable row level security;
+alter table weather_hourly enable row level security;
