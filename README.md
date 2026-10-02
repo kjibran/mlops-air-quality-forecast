@@ -2,7 +2,9 @@
 
 # Copenhagen NO₂ forecast: an end-to-end MLOps pipeline
 
-Hourly forecasts of nitrogen dioxide (NO₂) for the next 24 hours at the Jagtvej roadside monitoring station in Copenhagen. Everything runs automatically on free infrastructure: data ingestion, versioned snapshots, weekly retraining with automatic model promotion, hourly forecasts, monitoring, and a public dashboard.
+Hourly forecasts of nitrogen dioxide (NO₂) for the next 24 hours at the Jagtvej roadside monitoring station in Copenhagen. Everything runs automatically on free infrastructure, at no running cost: data ingestion, versioned snapshots, weekly retraining with automatic model promotion, hourly forecasts, monitoring, and a public dashboard.
+
+[![Dashboard showing the 24-hour NO₂ forecast for Jagtvej](docs/dashboard.png)](https://kjibran.github.io/mlops-air-quality-forecast/)
 
 **Live dashboard:** https://kjibran.github.io/mlops-air-quality-forecast/
 **Forecast API:** https://no2-forecast-api.onrender.com/docs
@@ -40,11 +42,14 @@ Live accuracy is measured continuously against new measurements and shown on the
 
 | Version | What changed | Outcome |
 |---|---|---|
-| v2 | First production model, trained on data up to October 2025 | Initial champion |
+| v1 | Registered by mistake from the measured-weather evaluation run. Same model weights as v2 | Replaced by v2 so the registry links to the realistic evaluation |
+| v2 | First production model, trained on data up to October 2025 | Initial champion. Realistic test MAE 5.59, as in the table above |
 | v3 | Retrained on data up to August 2026 | **Promoted.** MAE 4.93 vs 5.45 for v2 on the same recent 60 days |
 | v4 | Added urban background NO₂ and ozone from a second station | **Rejected.** Only 0.5% better, below the 2% promotion threshold |
 
 v3 was promoted automatically. NO₂ at the station has declined year on year, and a model trained on recent data has learned the lower current levels. v4 was a physically motivated idea that did not earn its place: the station's own recent history already carries most of the information the background station adds.
+
+Errors from different rows are not directly comparable, because they come from different evaluation periods. The results table evaluates v2 on the full test year. Promotion decisions only ever compare two models on the same days with the same forecast weather. The "in testing" figure on the dashboard is the current champion's error on its own 60-day evaluation window.
 
 ## Architecture
 
@@ -164,6 +169,7 @@ sql/                 database migrations
 site/                dashboard
 tests/               leakage, consistency and unit tests
 notebooks/           data exploration
+docs/                images for this README
 ```
 
 ## Run locally
@@ -187,3 +193,7 @@ Python 3.12, pandas, LightGBM, scikit-learn, MLflow, FastAPI, PostgreSQL (Supaba
 
 - NO₂ and ozone: European Environment Agency, via [OpenAQ](https://openaq.org).
 - Weather: [Open-Meteo](https://open-meteo.com), licensed under CC BY 4.0.
+
+## Licence
+
+The code is released under the MIT licence, see [LICENSE](LICENSE). The data keeps the terms of its original sources listed above.
