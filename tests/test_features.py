@@ -1,7 +1,11 @@
 import numpy as np
 import pandas as pd
 
-from mlops_air_quality_forecast.features import LATENCY_HOURS, build_features
+from mlops_air_quality_forecast.features import (
+    LATENCY_HOURS,
+    build_features,
+    build_inference_features,
+)
 
 START = "2024-01-01"
 N_HOURS = 24 * 14  # two weeks
@@ -71,3 +75,19 @@ def test_new_year_is_a_holiday():
         == pd.Timestamp("2024-01-01").date()
     ]
     assert (new_year["is_holiday"] == 1).all()
+
+
+def test_inference_features_match_training_features():
+    no2, weather = make_data()
+    training = build_features(no2, weather, START)
+    issue = pd.Timestamp(START, tz="UTC") + pd.Timedelta(days=10)
+
+    expected = training[training["issue_time"] == issue].drop(columns="target")
+    actual = build_inference_features(no2, weather, issue).drop(columns="target")
+
+    assert len(actual) == 24
+    pd.testing.assert_frame_equal(
+        actual.reset_index(drop=True),
+        expected.reset_index(drop=True),
+        check_dtype=False,
+    )

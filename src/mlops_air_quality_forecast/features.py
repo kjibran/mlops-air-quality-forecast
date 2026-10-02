@@ -5,31 +5,24 @@ import pandas as pd
 LATENCY_HOURS = 3  # NO2 arrives about 3 hours late
 HORIZONS = range(1, 25)
 LOCAL_TZ = "Europe/Copenhagen"
+HISTORY_HOURS = 24 * 8  # history needed at inference for the last-week feature
 
 
-def hourly_no2(no2: pd.DataFrame, start: str) -> pd.Series:
+def _utc(ts) -> pd.Timestamp:
+    ts = pd.Timestamp(ts)
+    return ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
+
+
+def hourly_no2(no2: pd.DataFrame, start) -> pd.Series:
     """NO2 as a complete hourly series (missing hours become NaN)."""
     s = no2.set_index("observed_at")["value_ugm3"].sort_index()
-    s = s[s.index >= pd.Timestamp(start, tz="UTC")]
+    s = s[s.index >= _utc(start)]
     full_index = pd.date_range(s.index.min(), s.index.max(), freq="h")
     return s.reindex(full_index)
 
 
-def build_features(
-    no2: pd.DataFrame,
-    weather: pd.DataFrame,
-    start: str,
-    weather_source: str = "archive",
-) -> pd.DataFrame:
-    """One row per (issue time, horizon), using only information available at issue time."""
-    s = hourly_no2(no2, start)
-    w = (
-        weather[weather["source"] == weather_source]
-        .set_index("observed_at")
-        .sort_index()
-    )
-    w = w.reindex(s.index)
-
+def _features_for(s: pd.Series, w: pd.DataFrame) -> pd.DataFrame:
+    """Core feature logic shared by training and inference. s and w share one hourly index."""
     # What we actually know at issue time t: values up to t - LATENCY_HOURS
     available = s.shift(LATENCY_HOURS)
     issue_features = pd.DataFrame(
@@ -78,5 +71,34 @@ def build_features(
 
         frames.append(f)
 
-    features = pd.concat(frames).rename_axis("issue_time").reset_index()
-    return features.dropna(subset=["target"]).reset_index(drop=True)
+    return pd.concat(frames).rename_axis("issue_time").reset_index()
+
+
+def build_features(
+    no2: pd.DataFrame, weather: pd.DataFrame, start, weather_source: str = "archive"
+) -> pd.DataFrame:
+    """Training table: one row per (issue time, horizon) with a known target."""
+    s = hourly_no2(no2, start)
+    w = (
+        weather[weather["source"] == weather_source]
+        .set_index("observed_at")
+        .sort_index()
+    )
+    f = _features_for(s, w.reindex(s.index))
+    return f.dropna(subset=["target"]).reset_index(drop=True)
+
+
+def build_inference_features(
+    no2: pd.DataFrame, weather: pd.DataFrame, issue_time
+) -> pd.DataFrame:
+    """Rows for one issue time, horizons 1 to 24. `weather` must hold a single source."""
+    issue_time = _utc(issue_time)
+    index = pd.date_range(
+        issue_time - pd.Timedelta(hours=HISTORY_HOURS),
+        issue_time + pd.Timedelta(hours=max(HORIZONS)),
+        freq="h",
+    )
+    s = no2.set_index("observed_at")["value_ugm3"].sort_index().reindex(index)
+    w = weather.set_index("observed_at").sort_index().reindex(index)
+    f = _features_for(s, w)
+    return f[f["issue_time"] == issue_time].reset_index(drop=True)
