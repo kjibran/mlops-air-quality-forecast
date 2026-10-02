@@ -20,10 +20,15 @@ FEATURES = [
     "is_holiday",
 ]
 
+# Boundary layer height is not available as a historical forecast, so production models skip it
 FEATURES_NO_BLH = [f for f in FEATURES if f != "boundary_layer_height"]
 
+# Urban background station (OpenAQ location 5170): regional NO2 level and ozone chemistry
+BACKGROUND_FEATURES = ["bg_no2_last", "bg_no2_mean_24h", "bg_o3_last", "bg_o3_mean_24h"]
+FEATURES_V2 = FEATURES_NO_BLH + BACKGROUND_FEATURES
+
 # The feature set used for production models. Change this to introduce a new model version.
-PRODUCTION_FEATURES = FEATURES_NO_BLH
+PRODUCTION_FEATURES = FEATURES_V2
 
 PARAMS = {
     "objective": "l1",

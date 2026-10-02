@@ -8,7 +8,11 @@ from mlflow import MlflowClient
 from mlops_air_quality_forecast.config import settings
 from mlops_air_quality_forecast.features import HISTORY_HOURS, build_inference_features
 from mlops_air_quality_forecast.openmeteo import fetch_weather_forecast_live
-from mlops_air_quality_forecast.store import read_no2, upsert_predictions
+from mlops_air_quality_forecast.store import (
+    read_background,
+    read_no2,
+    upsert_predictions,
+)
 
 MODEL_NAME = "no2-forecaster"
 ALIAS = "champion"
@@ -24,8 +28,10 @@ def load_champion():
 def score(issue_time: pd.Timestamp) -> pd.DataFrame:
     """Predict the next 24 hours from `issue_time` and store the predictions."""
     model, version = load_champion()
+    since = issue_time - timedelta(hours=HISTORY_HOURS)
 
-    no2 = read_no2(settings.no2_sensor_id, issue_time - timedelta(hours=HISTORY_HOURS))
+    no2 = read_no2(settings.no2_sensor_id, since)
+    background = read_background(settings.background_location_id, since)
     weather = pd.DataFrame(
         fetch_weather_forecast_live(
             settings.station_lat, settings.station_lon, settings.location_key
@@ -33,7 +39,7 @@ def score(issue_time: pd.Timestamp) -> pd.DataFrame:
     )
     weather["observed_at"] = pd.to_datetime(weather["observed_at"], utc=True)
 
-    features = build_inference_features(no2, weather, issue_time)
+    features = build_inference_features(no2, weather, issue_time, background)
     # The model knows its own input columns, so scoring can never select the wrong ones
     predicted = model.predict(features[model.feature_name()])
 

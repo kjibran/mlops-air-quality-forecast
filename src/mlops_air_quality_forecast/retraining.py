@@ -3,7 +3,11 @@ import mlflow.lightgbm
 from mlflow import MlflowClient
 
 from mlops_air_quality_forecast.config import settings
-from mlops_air_quality_forecast.data import latest_snapshot_tag, load_snapshot
+from mlops_air_quality_forecast.data import (
+    latest_snapshot_tag,
+    load_background,
+    load_snapshot,
+)
 from mlops_air_quality_forecast.evaluation import split_by_time
 from mlops_air_quality_forecast.features import build_features
 from mlops_air_quality_forecast.model import PRODUCTION_FEATURES, train_model
@@ -22,8 +26,13 @@ def eval_mae(booster, rows) -> float:
 def retrain() -> dict:
     tag = latest_snapshot_tag()
     no2, weather = load_snapshot(tag)
-    archive = build_features(no2, weather, settings.training_start, "archive")
-    forecast = build_features(no2, weather, settings.training_start, "forecast_day1")
+    background = load_background(tag)
+    archive = build_features(
+        no2, weather, settings.training_start, "archive", background
+    )
+    forecast = build_features(
+        no2, weather, settings.training_start, "forecast_day1", background
+    )
 
     # Train on everything before the evaluation window, evaluate both models inside it
     train, _, eval_start = split_by_time(archive, test_days=EVAL_DAYS)
@@ -52,6 +61,7 @@ def retrain() -> dict:
         mlflow.log_params(
             {
                 "features": ",".join(PRODUCTION_FEATURES),
+                "n_features": len(PRODUCTION_FEATURES),
                 "eval_start": f"{eval_start:%Y-%m-%d}",
                 "eval_days": EVAL_DAYS,
                 "n_train": len(fit_part),
@@ -78,6 +88,7 @@ def retrain() -> dict:
         "champion_version": champion_version,
         "champion_mae": round(champion_mae, 3),
         "challenger_version": new_version,
+        "challenger_features": len(PRODUCTION_FEATURES),
         "challenger_mae": round(challenger_mae, 3),
         "promoted": promote,
         "run_id": run.info.run_id,

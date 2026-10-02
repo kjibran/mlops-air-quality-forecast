@@ -2,10 +2,11 @@ import holidays
 import numpy as np
 import pandas as pd
 
-LATENCY_HOURS = 3  # NO2 arrives about 3 hours late
+LATENCY_HOURS = 3  # pollutant data arrives about 3 hours late
 HORIZONS = range(1, 25)
 LOCAL_TZ = "Europe/Copenhagen"
 HISTORY_HOURS = 24 * 8  # history needed at inference for the last-week feature
+BACKGROUND_PARAMETERS = ["no2", "o3"]
 
 
 def _utc(ts) -> pd.Timestamp:
@@ -21,15 +22,32 @@ def hourly_no2(no2: pd.DataFrame, start) -> pd.Series:
     return s.reindex(full_index)
 
 
-def _features_for(s: pd.Series, w: pd.DataFrame) -> pd.DataFrame:
-    """Core feature logic shared by training and inference. s and w share one hourly index."""
+def _background_frame(
+    background: pd.DataFrame | None, index: pd.DatetimeIndex
+) -> pd.DataFrame:
+    """Background pollutants as one column per parameter on the given hourly index."""
+    if background is None or background.empty:
+        return pd.DataFrame(np.nan, index=index, columns=BACKGROUND_PARAMETERS)
+    wide = background.pivot_table(
+        index="observed_at", columns="parameter", values="value_ugm3", aggfunc="mean"
+    )
+    return wide.reindex(index=index, columns=BACKGROUND_PARAMETERS)
+
+
+def _features_for(s: pd.Series, w: pd.DataFrame, bg: pd.DataFrame) -> pd.DataFrame:
+    """Core feature logic shared by training and inference. s, w and bg share one hourly index."""
     # What we actually know at issue time t: values up to t - LATENCY_HOURS
     available = s.shift(LATENCY_HOURS)
+    bg_available = bg.shift(LATENCY_HOURS)
     issue_features = pd.DataFrame(
         {
             "no2_last": available,
             "no2_mean_6h": available.rolling(6, min_periods=3).mean(),
             "no2_mean_24h": available.rolling(24, min_periods=12).mean(),
+            "bg_no2_last": bg_available["no2"],
+            "bg_no2_mean_24h": bg_available["no2"].rolling(24, min_periods=12).mean(),
+            "bg_o3_last": bg_available["o3"],
+            "bg_o3_mean_24h": bg_available["o3"].rolling(24, min_periods=12).mean(),
         },
         index=s.index,
     )
@@ -75,7 +93,11 @@ def _features_for(s: pd.Series, w: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_features(
-    no2: pd.DataFrame, weather: pd.DataFrame, start, weather_source: str = "archive"
+    no2: pd.DataFrame,
+    weather: pd.DataFrame,
+    start,
+    weather_source: str = "archive",
+    background: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Training table: one row per (issue time, horizon) with a known target."""
     s = hourly_no2(no2, start)
@@ -84,12 +106,16 @@ def build_features(
         .set_index("observed_at")
         .sort_index()
     )
-    f = _features_for(s, w.reindex(s.index))
+    bg = _background_frame(background, s.index)
+    f = _features_for(s, w.reindex(s.index), bg)
     return f.dropna(subset=["target"]).reset_index(drop=True)
 
 
 def build_inference_features(
-    no2: pd.DataFrame, weather: pd.DataFrame, issue_time
+    no2: pd.DataFrame,
+    weather: pd.DataFrame,
+    issue_time,
+    background: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Rows for one issue time, horizons 1 to 24. `weather` must hold a single source."""
     issue_time = _utc(issue_time)
@@ -100,5 +126,6 @@ def build_inference_features(
     )
     s = no2.set_index("observed_at")["value_ugm3"].sort_index().reindex(index)
     w = weather.set_index("observed_at").sort_index().reindex(index)
-    f = _features_for(s, w)
+    bg = _background_frame(background, index)
+    f = _features_for(s, w, bg)
     return f[f["issue_time"] == issue_time].reset_index(drop=True)

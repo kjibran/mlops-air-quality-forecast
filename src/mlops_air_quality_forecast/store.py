@@ -2,6 +2,8 @@ import pandas as pd
 
 from mlops_air_quality_forecast.db import connect
 
+# --- NO2 at the target station ---
+
 UPSERT_NO2 = """
 insert into no2_hourly (sensor_id, observed_at, value_ugm3, coverage_pct)
 values (%(sensor_id)s, %(observed_at)s, %(value_ugm3)s, %(coverage_pct)s)
@@ -10,6 +12,32 @@ on conflict (sensor_id, observed_at) do update set
     coverage_pct = excluded.coverage_pct,
     ingested_at = now()
 """
+
+
+def upsert_no2(rows: list[dict]) -> int:
+    """Insert new hours and update existing ones. Safe to run repeatedly."""
+    if not rows:
+        return 0
+    with connect() as conn, conn.cursor() as cur:
+        cur.executemany(UPSERT_NO2, rows)
+    return len(rows)
+
+
+def read_no2(sensor_id: int, since) -> pd.DataFrame:
+    """NO2 hours for one sensor from `since` onwards."""
+    with connect() as conn:
+        cur = conn.execute(
+            "select observed_at, value_ugm3 from no2_hourly "
+            "where sensor_id = %s and observed_at >= %s order by observed_at",
+            (sensor_id, since),
+        )
+        df = pd.DataFrame(cur.fetchall(), columns=["observed_at", "value_ugm3"])
+    df["observed_at"] = pd.to_datetime(df["observed_at"], utc=True)
+    df["value_ugm3"] = df["value_ugm3"].astype(float)
+    return df
+
+
+# --- Weather ---
 
 UPSERT_WEATHER = """
 insert into weather_hourly (
@@ -41,28 +69,49 @@ def upsert_weather(rows: list[dict]) -> int:
     return len(rows)
 
 
-def upsert_no2(rows: list[dict]) -> int:
-    """Insert new hours and update existing ones. Safe to run repeatedly."""
+# --- Background station pollutants ---
+
+UPSERT_POLLUTANT = """
+insert into pollutant_hourly (
+    sensor_id, location_id, parameter, observed_at, value_ugm3, coverage_pct
+)
+values (
+    %(sensor_id)s, %(location_id)s, %(parameter)s, %(observed_at)s,
+    %(value_ugm3)s, %(coverage_pct)s
+)
+on conflict (sensor_id, observed_at) do update set
+    value_ugm3 = excluded.value_ugm3,
+    coverage_pct = excluded.coverage_pct,
+    ingested_at = now()
+"""
+
+
+def upsert_pollutant(rows: list[dict]) -> int:
+    """Insert or update auxiliary pollutant hours. Safe to run repeatedly."""
     if not rows:
         return 0
     with connect() as conn, conn.cursor() as cur:
-        cur.executemany(UPSERT_NO2, rows)
+        cur.executemany(UPSERT_POLLUTANT, rows)
     return len(rows)
 
 
-def read_no2(sensor_id: int, since) -> pd.DataFrame:
-    """NO2 hours for one sensor from `since` onwards."""
+def read_background(location_id: int, since) -> pd.DataFrame:
+    """Background pollutant hours (all parameters) for one location from `since` onwards."""
     with connect() as conn:
         cur = conn.execute(
-            "select observed_at, value_ugm3 from no2_hourly "
-            "where sensor_id = %s and observed_at >= %s order by observed_at",
-            (sensor_id, since),
+            "select parameter, observed_at, value_ugm3 from pollutant_hourly "
+            "where location_id = %s and observed_at >= %s order by observed_at",
+            (location_id, since),
         )
-        df = pd.DataFrame(cur.fetchall(), columns=["observed_at", "value_ugm3"])
+        df = pd.DataFrame(
+            cur.fetchall(), columns=["parameter", "observed_at", "value_ugm3"]
+        )
     df["observed_at"] = pd.to_datetime(df["observed_at"], utc=True)
     df["value_ugm3"] = df["value_ugm3"].astype(float)
     return df
 
+
+# --- Predictions ---
 
 UPSERT_PREDICTIONS = """
 insert into predictions (
@@ -110,27 +159,3 @@ def read_verification(sensor_id: int, location_key: str, days: int) -> list[tupl
         return conn.execute(
             VERIFICATION_SQL, (sensor_id, location_key, days)
         ).fetchall()
-
-
-UPSERT_POLLUTANT = """
-insert into pollutant_hourly (
-    sensor_id, location_id, parameter, observed_at, value_ugm3, coverage_pct
-)
-values (
-    %(sensor_id)s, %(location_id)s, %(parameter)s, %(observed_at)s,
-    %(value_ugm3)s, %(coverage_pct)s
-)
-on conflict (sensor_id, observed_at) do update set
-    value_ugm3 = excluded.value_ugm3,
-    coverage_pct = excluded.coverage_pct,
-    ingested_at = now()
-"""
-
-
-def upsert_pollutant(rows: list[dict]) -> int:
-    """Insert or update auxiliary pollutant hours. Safe to run repeatedly."""
-    if not rows:
-        return 0
-    with connect() as conn, conn.cursor() as cur:
-        cur.executemany(UPSERT_POLLUTANT, rows)
-    return len(rows)
