@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Jagtvej NO₂ forecast: the next 24 hours in Copenhagen</title>
+    <meta name="description"
+        content="Hourly NO₂ forecast for the Jagtvej roadside monitoring station in Copenhagen, updated every hour by an automated MLOps pipeline.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --fog: #EEF2F4;
+            --ink: #17222C;
+            --muted: #5A6A77;
+            --line: #C6D1D8;
+            --harbour: #2E5A70;
+            --verdigris: #3B8B78;
+            --haze: #D9A441;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--fog);
+            color: var(--ink);
+            font-family: "Schibsted Grotesk", system-ui, sans-serif;
+            font-size: 1.0625rem;
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .wrap {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 clamp(1.25rem, 4vw, 3rem);
+        }
+
+        a {
+            color: var(--harbour);
+            text-underline-offset: 3px;
+        }
+
+        a:focus-visible {
+            outline: 3px solid var(--verdigris);
+            outline-offset: 3px;
+            border-radius: 2px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding-top: 1.5rem;
+        }
+
+        .brand {
+            font-weight: 800;
+            letter-spacing: -0.01em;
+        }
+
+        .toplinks {
+            display: flex;
+            gap: 1.4rem;
+            flex-wrap: wrap;
+            font-size: 0.95rem;
+        }
+
+        .toplinks a {
+            color: var(--ink);
+            text-decoration: none;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .toplinks a:hover {
+            border-color: var(--ink);
+        }
+
+        .hero {
+            padding: clamp(3rem, 9vw, 6.5rem) 0 2.25rem;
+        }
+
+        .headline {
+            margin: 0;
+            max-width: 17ch;
+            font-size: clamp(2.3rem, 5.8vw, 4.5rem);
+            line-height: 1.03;
+            letter-spacing: -0.028em;
+            font-weight: 800;
+        }
+
+        .subline {
+            margin: 1.4rem 0 0;
+            max-width: 54ch;
+            font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+            color: var(--muted);
+        }
+
+        .meta {
+            margin: 0.8rem 0 0;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        .strip-wrap {
+            overflow-x: auto;
+            padding-bottom: 0.4rem;
+        }
+
+        .strip {
+            display: grid;
+            grid-template-columns: repeat(24, minmax(50px, 1fr));
+            gap: 3px;
+            min-width: 860px;
+        }
+
+        .slot {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .date {
+            height: 1.5rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: visible;
+            color: var(--ink);
+        }
+
+        .cell {
+            border-radius: 3px;
+            padding: 0.55rem 0.15rem 0.6rem;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(8px);
+            animation: rise 0.5s ease forwards;
+        }
+
+        .slot.daystart .cell {
+            box-shadow: inset 3px 0 0 rgba(23, 34, 44, 0.55);
+        }
+
+        .cell .h {
+            display: block;
+            font-size: 0.74rem;
+            opacity: 0.8;
+        }
+
+        .cell .v {
+            display: block;
+            font-weight: 700;
+            font-size: 1.1rem;
+            line-height: 1.25;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .cell.dark {
+            color: #fff;
+        }
+
+        @keyframes rise {
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .strip-note {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 0.7rem;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .scale {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+
+        .scale i {
+            display: inline-block;
+            width: 140px;
+            height: 8px;
+            border-radius: 4px;
+            background: linear-gradient(90deg,
+                    #08306B 0%, #2171B5 10%, #6BAED6 20%, #F7F7F7 30%,
+                    #FC9272 45%, #DE2D26 60%, #A50F15 80%, #67000D 100%);
+        }
+
+        section {
+            padding-top: clamp(3.5rem, 8vw, 5.5rem);
+        }
+
+        h2 {
+            margin: 0 0 0.6rem;
+            font-size: clamp(1.55rem, 2.7vw, 2.1rem);
+            line-height: 1.15;
+            letter-spacing: -0.018em;
+            font-weight: 800;
+        }
+
+        .lede {
+            margin: 0 0 1.75rem;
+            max-width: 66ch;
+            color: var(--muted);
+        }
+
+        .chart-box {
+            position: relative;
+            height: clamp(280px, 40vw, 420px);
+        }
+
+        .chart-box.short {
+            height: 270px;
+        }
+
+        .legend {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.9rem;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        .legend span::before {
+            content: "";
+            display: inline-block;
+            width: 18px;
+            height: 3px;
+            margin-right: 0.45rem;
+            vertical-align: middle;
+            border-radius: 2px;
+            background: var(--c);
+        }
+
+        .legend .dashed::before {
+            background: repeating-linear-gradient(90deg, var(--c) 0 5px, transparent 5px 9px);
+        }
+
+        .legend .band::before {
+            height: 11px;
+            opacity: 0.3;
+        }
+
+        .accuracy {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+            gap: clamp(1.5rem, 4vw, 3.5rem);
+            align-items: start;
+        }
+
+        .bignum {
+            font-size: clamp(2.8rem, 6.5vw, 4.4rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1;
+        }
+
+        .bignum small {
+            font-size: 0.38em;
+            font-weight: 500;
+            letter-spacing: 0;
+            color: var(--muted);
+        }
+
+        .compare {
+            margin: 1rem 0 0;
+            max-width: 40ch;
+        }
+
+        .empty {
+            margin: 0;
+            max-width: 56ch;
+            color: var(--muted);
+        }
+
+        .steps {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            border-top: 2px solid var(--ink);
+        }
+
+        .steps li {
+            padding: 1.1rem 1.25rem 0 0;
+        }
+
+        .steps b {
+            display: block;
+            margin-bottom: 0.35rem;
+            font-size: 1.05rem;
+        }
+
+        .steps .n {
+            margin-right: 0.4rem;
+            font-weight: 800;
+            color: var(--verdigris);
+        }
+
+        .steps p {
+            margin: 0;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: var(--muted);
+        }
+
+        footer {
+            margin-top: clamp(4rem, 9vw, 6.5rem);
+            padding: 2rem 0 3rem;
+            border-top: 1px solid var(--line);
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        @media (max-width: 860px) {
+            .accuracy {
+                grid-template-columns: 1fr;
+            }
+
+            .steps {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .steps {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .cell {
+                animation: none;
+                opacity: 1;
+                transform: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <header class="topbar">
+            <div class="brand">Copenhagen Jagtvej NO₂ forecast</div>
+            <nav class="toplinks" aria-label="Project links">
+                <a href="https://github.com/kjibran/mlops-air-quality-forecast">Source code</a>
+                <a href="https://no2-forecast-api.onrender.com/docs">API</a>
+                <a href="https://huggingface.co/datasets/khajlk/copenhagen-air-quality-hourly">Dataset</a>
+                <a href="https://dagshub.com/kjibran/mlops-air-quality-forecast/experiments">Experiments</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="hero">
+                <h1 class="headline" id="headline">Loading the latest forecast</h1>
+                <p class="subline" id="subline">Hourly nitrogen dioxide forecast for the Jagtvej roadside monitoring
+                    station in Copenhagen.</p>
+                <p class="meta" id="meta"></p>
+            </div>
+
+            <div class="strip-wrap">
+                <div class="strip" id="strip" role="list" aria-label="Forecast for each of the next 24 hours"></div>
+            </div>
+            <div class="strip-note">
+                <span>NO₂ in µg/m³ for each hour, Copenhagen time. White marks this station's typical level, about 12
+                    µg/m³.</span>
+                <span class="scale">Cleaner <i aria-hidden="true"></i> More polluted</span>
+            </div>
+
+            <section aria-labelledby="h-timeline">
+                <h2 id="h-timeline">The last two days and the next one</h2>
+                <p class="lede">Measured values lead into the current forecast. The shaded band shows the typical size
+                    of the forecast error. The dashed line shows what the model predicted six hours in advance, for
+                    hours that have since been measured.</p>
+                <div class="chart-box"><canvas id="timeline" role="img"
+                        aria-label="Measured NO2 over the last two days and the forecast for the next 24 hours"></canvas>
+                </div>
+                <div class="legend">
+                    <span style="--c: var(--harbour)">Measured</span>
+                    <span style="--c: var(--verdigris)">Forecast</span>
+                    <span class="band" style="--c: var(--verdigris)">Typical error</span>
+                    <span class="dashed" style="--c: var(--haze)">Predicted 6 hours ahead</span>
+                </div>
+            </section>
+
+            <section aria-labelledby="h-accuracy">
+                <h2 id="h-accuracy">How close it has been</h2>
+                <div id="accuracy"></div>
+            </section>
+
+            <section aria-labelledby="h-how">
+                <h2 id="h-how">How it works</h2>
+                <p class="lede">The forecast describes the air at one roadside monitoring station on Jagtvej, not the
+                    whole street. Every part runs on its own, on free infrastructure, and nothing on this page is
+                    updated by hand.</p>
+                <ol class="steps">
+                    <li><b><span class="n">1</span>Measure</b>
+                        <p>Hourly NO₂ from official monitoring stations and weather data are collected into a Postgres
+                            database every hour.</p>
+                    </li>
+                    <li><b><span class="n">2</span>Freeze</b>
+                        <p>Each week the data is saved as a versioned snapshot, so every model can be traced to the
+                            exact data it learned from.</p>
+                    </li>
+                    <li><b><span class="n">3</span>Retrain</b>
+                        <p>A new model is trained every week. It replaces the current one only if it is at least 2% more
+                            accurate on the same recent weeks.</p>
+                    </li>
+                    <li><b><span class="n">4</span>Forecast</b>
+                        <p>Every hour, the current model predicts the next 24 hours from the latest measurements and the
+                            weather forecast.</p>
+                    </li>
+                    <li><b><span class="n">5</span>Check</b>
+                        <p>Daily checks watch data freshness and live accuracy, and a weekly report flags unusual
+                            inputs.</p>
+                    </li>
+                </ol>
+            </section>
+        </main>
+
+        <footer>
+            <span>Data from the European Environment Agency via OpenAQ, and from Open-Meteo (CC BY 4.0).</span>
+            <span>Built by <a href="https://github.com/kjibran">Jibran Khan</a></span>
+        </footer>
+    </div>
+
+    <noscript>
+        <p class="wrap">This page needs JavaScript to draw the forecast.</p>
+    </noscript>
+
+    <script>
+        const STATION = "the Jagtvej roadside monitoring station";
+        const TZ = "Europe/Copenhagen";
+        const fmtHour = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });
+        const fmtWeekday = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short" });
+        const fmtShortDate = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
+        const fmtDayMonth = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
+        const fmtDate = new Intl.DateTimeFormat("en-CA", { timeZone: TZ });
+        const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+        const hexToRgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+        const rgbToHex = rgb => "#" + rgb.map(x => Math.round(x).toString(16).padStart(2, "0")).join("");
+        const luminance = hex => { const [r, g, b] = hexToRgb(hex).map(x => x / 255); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+
+        // Climate stripes palette: white at this station's typical level (about 12 µg/m³)
+        const STRIPE_STOPS = [
+            [0, "#08306B"], [4, "#2171B5"], [8, "#6BAED6"], [12, "#F7F7F7"],
+            [18, "#FC9272"], [24, "#DE2D26"], [32, "#A50F15"], [40, "#67000D"],
+        ];
+        function stripeColor(v) {
+            if (v <= STRIPE_STOPS[0][0]) return STRIPE_STOPS[0][1];
+            for (let i = 1; i < STRIPE_STOPS.length; i++) {
+                const [v1, c1] = STRIPE_STOPS[i];
+                if (v <= v1) {
+                    const [v0, c0] = STRIPE_STOPS[i - 1];
+                    const t = (v - v0) / (v1 - v0);
+                    const a = hexToRgb(c0), b = hexToRgb(c1);
+                    return rgbToHex(a.map((x, k) => x + (b[k] - x) * t));
+                }
+            }
+            return STRIPE_STOPS[STRIPE_STOPS.length - 1][1];
+        }
+
+        function dayWord(date) {
+            const target = fmtDate.format(date);
+            if (target === fmtDate.format(new Date())) return "today";
+            if (target === fmtDate.format(new Date(Date.now() + 86400000))) return "tomorrow";
+            return "on " + fmtDayMonth.format(date);
+        }
+
+        const tickLabel = ms => { const d = new Date(ms); return `${fmtWeekday.format(d)} ${fmtHour.format(d)}`; };
+
+        const forecastMadeLine = {
+            id: "forecastMadeLine",
+            afterDatasetsDraw(chart, args, opts) {
+                const x = chart.scales.x.getPixelForValue(opts.at);
+                const { top, bottom } = chart.chartArea;
+                const ctx = chart.ctx;
+                ctx.save();
+                ctx.strokeStyle = opts.color;
+                ctx.setLineDash([2, 4]);
+                ctx.beginPath();
+                ctx.moveTo(x, top);
+                ctx.lineTo(x, bottom);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = opts.color;
+                ctx.font = '500 12px "Schibsted Grotesk", system-ui, sans-serif';
+                ctx.fillText("Forecast made", x + 6, top + 12);
+                ctx.restore();
+            },
+        };
+
+        function drawHero(data, forecast) {
+            const peak = forecast.reduce((a, b) => (b.v > a.v ? b : a));
+            const mean = forecast.reduce((s, p) => s + p.v, 0) / forecast.length;
+            const issue = new Date(data.issue_time);
+            const updated = new Date(data.generated_at);
+
+            document.getElementById("headline").textContent =
+                `NO₂ peaks at ${Math.round(peak.v)} µg/m³ around ${fmtHour.format(peak.t)} ${dayWord(peak.t)}.`;
+            document.getElementById("subline").textContent =
+                `Average over the next 24 hours at ${STATION} in Copenhagen: ${Math.round(mean)} µg/m³. The WHO guideline for a 24-hour average is 25 µg/m³.`;
+            document.getElementById("meta").textContent =
+                `Forecast made at ${fmtHour.format(issue)} ${dayWord(issue)} by model version ${data.model_version}. Page updated at ${fmtHour.format(updated)} ${dayWord(updated)}.`;
+
+            const strip = document.getElementById("strip");
+            strip.innerHTML = "";
+            forecast.forEach((p, i) => {
+                const time = fmtHour.format(p.t);
+                const startsDay = time === "00:00";
+                const color = stripeColor(p.v);
+
+                const slot = document.createElement("div");
+                slot.className = "slot" + (startsDay ? " daystart" : "");
+                slot.setAttribute("role", "listitem");
+
+                const date = document.createElement("div");
+                date.className = "date";
+                date.textContent = i === 0 || startsDay ? fmtShortDate.format(p.t) : "";
+
+                const cell = document.createElement("div");
+                cell.className = "cell" + (luminance(color) < 0.5 ? " dark" : "");
+                cell.style.background = color;
+                cell.style.animationDelay = `${i * 35}ms`;
+                cell.title = `${fmtShortDate.format(p.t)}, ${time}: ${p.v.toFixed(1)} µg/m³`;
+                cell.innerHTML = `<span class="h">${time}</span><span class="v">${Math.round(p.v)}</span>`;
+
+                slot.append(date, cell);
+                strip.appendChild(slot);
+            });
+        }
+
+        function drawTimeline(data, forecast) {
+            const err = (data.accuracy && data.accuracy.model_mae) || data.champion_test_mae || 0;
+            const pts = arr => arr.map(p => ({ x: new Date(p.t).getTime(), y: p.v }));
+            const fc = forecast.map(p => ({ x: p.t.getTime(), y: p.v }));
+            const issueMs = new Date(data.issue_time).getTime();
+            const verdigris = cssVar("--verdigris");
+
+            new Chart(document.getElementById("timeline"), {
+                type: "line",
+                data: {
+                    datasets: [
+                        {
+                            label: "Lower", data: fc.map(p => ({ x: p.x, y: Math.max(0, p.y - err) })), isBand: true,
+                            borderWidth: 0, pointRadius: 0, fill: false
+                        },
+                        {
+                            label: "Typical error", data: fc.map(p => ({ x: p.x, y: p.y + err })), isBand: true,
+                            borderWidth: 0, pointRadius: 0, fill: "-1", backgroundColor: verdigris + "26"
+                        },
+                        {
+                            label: "Measured", data: pts(data.measured), borderColor: cssVar("--harbour"),
+                            borderWidth: 2.25, pointRadius: 0, tension: 0.25, spanGaps: false
+                        },
+                        {
+                            label: `Predicted ${data.earlier_horizon} hours ahead`, data: pts(data.earlier),
+                            borderColor: cssVar("--haze"), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, tension: 0.25
+                        },
+                        { label: "Forecast", data: fc, borderColor: verdigris, borderWidth: 3, pointRadius: 0, tension: 0.25 },
+                    ],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    interaction: { mode: "nearest", axis: "x", intersect: false },
+                    scales: {
+                        x: {
+                            type: "linear",
+                            min: issueMs - 48 * 3600e3,
+                            max: fc.length ? fc[fc.length - 1].x : undefined,
+                            grid: { display: false },
+                            ticks: { stepSize: 6 * 3600e3, callback: tickLabel, maxRotation: 0, autoSkipPadding: 18 },
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: cssVar("--line") },
+                            border: { display: false },
+                            title: { display: true, text: "µg/m³" },
+                        },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            filter: item => !item.dataset.isBand,
+                            callbacks: {
+                                title: items => items.length ? `${fmtShortDate.format(new Date(items[0].parsed.x))}, ${fmtHour.format(new Date(items[0].parsed.x))}` : "",
+                                label: item => `${item.dataset.label}: ${item.parsed.y.toFixed(1)} µg/m³`,
+                            },
+                        },
+                        forecastMadeLine: { at: issueMs, color: cssVar("--muted") },
+                    },
+                },
+                plugins: [forecastMadeLine],
+            });
+        }
+
+        function drawAccuracy(data) {
+            const acc = data.accuracy;
+            const box = document.getElementById("accuracy");
+            if (!acc || acc.verified < 100 || acc.model_mae == null) {
+                box.innerHTML = `<p class="empty">Accuracy appears here once forecast hours have been measured. Measurements arrive about three hours late, so the first numbers show within a day.</p>`;
+                return;
+            }
+            let comparison = "";
+            if (acc.persistence_mae) {
+                const gain = Math.round(100 * (1 - acc.model_mae / acc.persistence_mae));
+                comparison = gain >= 0
+                    ? ` That is ${gain}% closer than assuming the latest measurement stays the same.`
+                    : ` That is ${-gain}% further off than assuming the latest measurement stays the same.`;
+            }
+            const tested = data.champion_test_mae ? ` In testing, this model averaged ${data.champion_test_mae.toFixed(1)} µg/m³.` : "";
+
+            box.innerHTML = `
+    <div class="accuracy">
+      <div>
+        <div class="bignum">${acc.model_mae.toFixed(1)} <small>µg/m³</small></div>
+        <p class="compare">Average miss over the past ${acc.days} days, across ${acc.verified.toLocaleString("en-GB")} verified forecasts.${comparison}${tested}</p>
+      </div>
+      <div>
+        <div class="chart-box short"><canvas id="accuracy-chart" role="img" aria-label="Average forecast error by hours ahead"></canvas></div>
+        <div class="legend">
+          <span style="--c: var(--verdigris)">This model</span>
+          <span class="dashed" style="--c: var(--muted)">Latest value stays the same</span>
+        </div>
+      </div>
+    </div>`;
+
+            const hours = acc.by_horizon.map(r => r.h);
+            new Chart(document.getElementById("accuracy-chart"), {
+                type: "line",
+                data: {
+                    labels: hours,
+                    datasets: [
+                        {
+                            label: "This model", data: acc.by_horizon.map(r => r.model), borderColor: cssVar("--verdigris"),
+                            backgroundColor: cssVar("--verdigris"), borderWidth: 3, pointRadius: 0, tension: 0.3
+                        },
+                        {
+                            label: "Latest value stays the same", data: acc.by_horizon.map(r => r.persistence),
+                            borderColor: cssVar("--muted"), borderDash: [5, 4], borderWidth: 2, pointRadius: 0, tension: 0.3
+                        },
+                    ],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    interaction: { mode: "index", intersect: false },
+                    scales: {
+                        x: {
+                            grid: { display: false }, title: { display: true, text: "Hours ahead" },
+                            ticks: { callback: (v, i) => (hours[i] % 6 === 0 || hours[i] === 1 ? hours[i] : "") }
+                        },
+                        y: {
+                            beginAtZero: true, grid: { color: cssVar("--line") }, border: { display: false },
+                            title: { display: true, text: "Average miss, µg/m³" }
+                        },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: items => `${items[0].label} hours ahead`,
+                                label: item => `${item.dataset.label}: ${item.parsed.y.toFixed(2)} µg/m³`,
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        async function main() {
+            Chart.defaults.font.family = '"Schibsted Grotesk", system-ui, sans-serif';
+            Chart.defaults.font.size = 12.5;
+            Chart.defaults.color = cssVar("--muted");
+
+            let data;
+            try {
+                const response = await fetch("data.json", { cache: "no-store" });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                data = await response.json();
+            } catch (error) {
+                document.getElementById("headline").textContent = "The forecast could not be loaded.";
+                document.getElementById("subline").textContent =
+                    "The data file is missing or unreadable. It is rebuilt every hour, so try again shortly.";
+                return;
+            }
+
+            const forecast = data.forecast.map(p => ({ t: new Date(p.t), v: p.v }));
+            drawHero(data, forecast);
+            drawTimeline(data, forecast);
+            drawAccuracy(data);
+        }
+
+        main();
+    </script>
+</body>
+
+</html>

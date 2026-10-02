@@ -1,33 +1,51 @@
-name: Hourly ingest and score
+name: Hourly pipeline
 
 on:
   schedule:
     - cron: "20 * * * *"  # every hour at 20 minutes past, UTC
-  workflow_dispatch:       # allows starting it by hand from the Actions tab
+  workflow_dispatch:
 
 concurrency:
-  group: ingest
+  group: hourly-pipeline
   cancel-in-progress: false
 
 jobs:
-  ingest:
+  pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
+      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+      MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+      MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
       - name: Install dependencies
         run: uv sync --locked --no-dev
-      - name: Update NO2 and weather
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
+      - name: Update measurements and weather
         run: uv run --no-dev python scripts/update.py
       - name: Score the next 24 hours
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
-          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
-          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: uv run --no-dev python scripts/score.py
-      
+      - name: Export dashboard data
+        run: uv run --no-dev python scripts/export_dashboard.py
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  publish:
+    needs: pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
