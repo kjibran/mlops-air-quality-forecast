@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     database_url: str = ""
     openaq_api_key: str = ""
     no2_sensor_id: int = 13371  # NO2 at Copenhagen/1257 (OpenAQ location 5177)
+    training_start: str = "2019-11-01"  # data before this is unreliable, see README
 
 
 settings = Settings()
