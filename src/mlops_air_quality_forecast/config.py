@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     openaq_api_key: str = ""
     no2_sensor_id: int = 13371  # NO2 at Copenhagen/1257 (OpenAQ location 5177)
     training_start: str = "2019-11-01"  # data before this is unreliable, see README
+    location_key: str = "station_5177"
+    station_lat: float = 55.6983
+    station_lon: float = 12.5533
 
 
 settings = Settings()
