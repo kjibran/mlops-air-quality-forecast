@@ -73,7 +73,7 @@ Four scheduled workflows run the system:
 
 | Workflow | When | What it does |
 |---|---|---|
-| Hourly pipeline | Every hour | Ingests NO₂, background pollutants and weather, scores the next 24 hours with the champion model, rebuilds the dashboard |
+| Hourly pipeline | Twice an hour | Ingests NO₂, background pollutants and weather, scores the next 24 hours with the champion model, rebuilds the dashboard |
 | Weekly data snapshot | Monday 03:00 UTC | Exports the database to Parquet and tags a new version on Hugging Face |
 | Weekly retraining | After each snapshot | Trains a challenger, compares it with the champion, promotes it if clearly better, and writes a drift report |
 | Daily monitoring | Every day | Checks data freshness and live accuracy, and fails loudly if something is wrong |
@@ -139,6 +139,7 @@ Forecasts are computed in batch every hour and stored in the database. The API a
 - The realistic evaluation uses Day 1 forecasts for all horizons, so it is slightly pessimistic for short horizons, where the live service has fresher forecasts.
 - No prediction for the hour in progress. A horizon 0 nowcast would need its own training and evaluation.
 - No uncertainty model. The dashboard shows the typical error as a band, not a calibrated interval.
+- GitHub's scheduled triggers are best effort and can be delayed or dropped, so the pipeline runs twice an hour. Every run is idempotent, so the extra run is harmless and covers a dropped one.
 - Scheduled GitHub workflows pause in repositories without activity for 60 days.
 - The background station features could matter during outages at the main station. Evaluating on periods with gaps in the street data would test that.
 
