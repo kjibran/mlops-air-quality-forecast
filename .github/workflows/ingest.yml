@@ -2,7 +2,7 @@ name: Hourly pipeline
 
 on:
   schedule:
-    - cron: "20 * * * *"  # every hour at 20 minutes past, UTC
+    - cron: "17,47 * * * *"  # twice an hour, UTC. Runs are idempotent, so a dropped trigger is covered by the next
   workflow_dispatch:
 
 concurrency:
