@@ -16,11 +16,18 @@ def hourly_no2(no2: pd.DataFrame, start: str) -> pd.Series:
 
 
 def build_features(
-    no2: pd.DataFrame, weather: pd.DataFrame, start: str
+    no2: pd.DataFrame,
+    weather: pd.DataFrame,
+    start: str,
+    weather_source: str = "archive",
 ) -> pd.DataFrame:
     """One row per (issue time, horizon), using only information available at issue time."""
     s = hourly_no2(no2, start)
-    w = weather[weather["source"] == "archive"].set_index("observed_at").sort_index()
+    w = (
+        weather[weather["source"] == weather_source]
+        .set_index("observed_at")
+        .sort_index()
+    )
     w = w.reindex(s.index)
 
     # What we actually know at issue time t: values up to t - LATENCY_HOURS

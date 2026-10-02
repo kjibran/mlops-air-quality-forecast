@@ -15,10 +15,36 @@ from mlops_air_quality_forecast.evaluation import (
     split_by_time,
 )
 from mlops_air_quality_forecast.features import HORIZONS, LATENCY_HOURS, build_features
-from mlops_air_quality_forecast.model import FEATURES, PARAMS, train_model
+from mlops_air_quality_forecast.model import (
+    FEATURES,
+    FEATURES_NO_BLH,
+    PARAMS,
+    train_model,
+)
 
 EXPERIMENT = "no2-forecast"
-RUN_NAME = "lgbm-archive-weather"
+
+# (run name, feature set, weather used for evaluation, description)
+EXPERIMENTS = [
+    (
+        "lgbm-archive-weather",
+        FEATURES,
+        "archive",
+        "Upper bound: perfect weather incl. BLH",
+    ),
+    (
+        "lgbm-archive-weather-no-blh",
+        FEATURES_NO_BLH,
+        "archive",
+        "Perfect weather, no BLH",
+    ),
+    (
+        "lgbm-forecast-weather-no-blh",
+        FEATURES_NO_BLH,
+        "forecast_day1",
+        "Realistic: Day 1 forecast weather",
+    ),
+]
 
 
 def git_commit() -> str:
@@ -28,67 +54,97 @@ def git_commit() -> str:
     return result.stdout.strip()
 
 
-# Data and features
 tag = latest_snapshot_tag()
 no2, weather = load_snapshot(tag)
-features = build_features(no2, weather, settings.training_start)
-train, test, test_start = split_by_time(features)
+print(f"Snapshot {tag}")
+
+# Training always uses archive weather; evaluation uses the source named per experiment
+archive_features = build_features(no2, weather, settings.training_start, "archive")
+train, archive_test, test_start = split_by_time(archive_features)
 fit_part, valid, _ = split_by_time(train, test_days=60)
+climatology = fit_climatology(train)
 
-# Model and evaluation
-model = train_model(fit_part, valid)
-predictions = predict_baselines(test, fit_climatology(train))
-predictions["lightgbm"] = model.predict(test[FEATURES])
-table = mae_by_horizon(test, predictions)
-table["gain_vs_persistence_%"] = 100 * (1 - table["lightgbm"] / table["persistence"])
+forecast_features = build_features(
+    no2, weather, settings.training_start, "forecast_day1"
+)
+test_sets = {
+    "archive": archive_test,
+    "forecast_day1": forecast_features[
+        forecast_features["issue_time"] >= test_start
+    ].reset_index(drop=True),
+}
 
-importance = pd.Series(
-    model.booster_.feature_importance(importance_type="gain"), index=FEATURES
-).sort_values(ascending=False)
-importance = 100 * importance / importance.sum()
-
-print(f"Snapshot {tag}, best iteration: {model.best_iteration_}")
-print(table.loc[[1, 3, 6, 12, 24, "all"]].round(2).to_string())
-
-# Log everything to MLflow
+models = {}  # train each feature set only once
 mlflow.set_experiment(EXPERIMENT)
-with mlflow.start_run(run_name=RUN_NAME):
-    mlflow.set_tags(
-        {
-            "data_snapshot": tag,
-            "git_commit": git_commit(),
-            "weather_input": "archive (perfect weather, upper bound)",
-        }
+
+for run_name, features, eval_source, description in EXPERIMENTS:
+    key = tuple(features)
+    if key not in models:
+        models[key] = train_model(fit_part, valid, features)
+    model = models[key]
+    test = test_sets[eval_source]
+
+    predictions = predict_baselines(test, climatology)
+    predictions["lightgbm"] = model.predict(test[features])
+    table = mae_by_horizon(test, predictions)
+    table["gain_vs_persistence_%"] = 100 * (
+        1 - table["lightgbm"] / table["persistence"]
     )
-    mlflow.log_params(
-        {
-            **PARAMS,
-            "training_start": settings.training_start,
-            "test_start": f"{test_start:%Y-%m-%d}",
-            "latency_hours": LATENCY_HOURS,
-            "n_features": len(FEATURES),
-            "n_train": len(fit_part),
-            "n_valid": len(valid),
-            "n_test": len(test),
-            "best_iteration": model.best_iteration_,
-        }
+
+    importance = pd.Series(
+        model.booster_.feature_importance(importance_type="gain"), index=features
+    ).sort_values(ascending=False)
+    importance = 100 * importance / importance.sum()
+
+    print(f"\n{run_name}: {description}")
+    print(
+        table.loc[
+            [1, 6, 12, 24, "all"], ["persistence", "lightgbm", "gain_vs_persistence_%"]
+        ]
+        .round(2)
+        .to_string()
     )
-    for method in ["climatology", "persistence", "last_week", "lightgbm"]:
-        mlflow.log_metric(f"mae_{method}", table.loc["all", method])
-    mlflow.log_metric(
-        "gain_vs_persistence_pct", table.loc["all", "gain_vs_persistence_%"]
-    )
-    for h in HORIZONS:
-        mlflow.log_metric("mae_lightgbm_by_horizon", table.loc[h, "lightgbm"], step=h)
-        mlflow.log_metric(
-            "mae_persistence_by_horizon", table.loc[h, "persistence"], step=h
+
+    with mlflow.start_run(run_name=run_name, description=description):
+        mlflow.set_tags(
+            {
+                "data_snapshot": tag,
+                "git_commit": git_commit(),
+                "train_weather": "archive",
+                "eval_weather": eval_source,
+            }
         )
+        mlflow.log_params(
+            {
+                **PARAMS,
+                "features": ",".join(features),
+                "training_start": settings.training_start,
+                "test_start": f"{test_start:%Y-%m-%d}",
+                "latency_hours": LATENCY_HOURS,
+                "n_features": len(features),
+                "n_train": len(fit_part),
+                "n_test": len(test),
+                "best_iteration": model.best_iteration_,
+            }
+        )
+        for method in ["climatology", "persistence", "last_week", "lightgbm"]:
+            mlflow.log_metric(f"mae_{method}", table.loc["all", method])
+        mlflow.log_metric(
+            "gain_vs_persistence_pct", table.loc["all", "gain_vs_persistence_%"]
+        )
+        for h in HORIZONS:
+            mlflow.log_metric(
+                "mae_lightgbm_by_horizon", table.loc[h, "lightgbm"], step=h
+            )
+            mlflow.log_metric(
+                "mae_persistence_by_horizon", table.loc[h, "persistence"], step=h
+            )
 
-    with tempfile.TemporaryDirectory() as tmp:
-        table.to_csv(Path(tmp) / "mae_by_horizon.csv")
-        importance.to_csv(Path(tmp) / "feature_importance.csv", header=["gain_pct"])
-        mlflow.log_artifacts(tmp, artifact_path="evaluation")
+        with tempfile.TemporaryDirectory() as tmp:
+            table.to_csv(Path(tmp) / "mae_by_horizon.csv")
+            importance.to_csv(Path(tmp) / "feature_importance.csv", header=["gain_pct"])
+            mlflow.log_artifacts(tmp, artifact_path="evaluation")
 
-    mlflow.lightgbm.log_model(model.booster_, name="model")
+        mlflow.lightgbm.log_model(model.booster_, name="model")
 
-print("Logged to MLflow.")
+print("\nAll runs logged to MLflow.")

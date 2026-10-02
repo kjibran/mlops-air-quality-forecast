@@ -20,6 +20,8 @@ FEATURES = [
     "is_holiday",
 ]
 
+FEATURES_NO_BLH = [f for f in FEATURES if f != "boundary_layer_height"]
+
 PARAMS = {
     "objective": "l1",
     "learning_rate": 0.05,
@@ -34,14 +36,17 @@ PARAMS = {
 
 
 def train_model(
-    train: pd.DataFrame, valid: pd.DataFrame, params: dict = PARAMS
+    train: pd.DataFrame,
+    valid: pd.DataFrame,
+    features: list[str] = FEATURES,
+    params: dict = PARAMS,
 ) -> lgb.LGBMRegressor:
     """Fit LightGBM with early stopping on the validation period."""
     model = lgb.LGBMRegressor(**params)
     model.fit(
-        train[FEATURES],
+        train[features],
         train["target"],
-        eval_X=valid[FEATURES],
+        eval_X=valid[features],
         eval_y=valid["target"],
         eval_metric="l1",
         callbacks=[lgb.early_stopping(100, verbose=False)],

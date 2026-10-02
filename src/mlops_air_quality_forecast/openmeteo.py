@@ -43,3 +43,41 @@ def fetch_weather_archive(
             row[var] = hourly[var][i]
         rows.append(row)
     return rows
+
+
+PREVIOUS_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1/forecast"
+FORECAST_VARS = [v for v in HOURLY_VARS if v != "boundary_layer_height"]
+
+
+def fetch_weather_forecast_day1(
+    lat: float, lon: float, start: date, end: date, location_key: str
+) -> list[dict]:
+    """Hourly weather as it was forecast about one day earlier. Both dates inclusive."""
+    response = httpx.get(
+        PREVIOUS_RUNS_URL,
+        params={
+            "latitude": lat,
+            "longitude": lon,
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "hourly": ",".join(f"{v}_previous_day1" for v in FORECAST_VARS),
+            "wind_speed_unit": "ms",
+            "timezone": "GMT",
+        },
+        timeout=120,
+    )
+    response.raise_for_status()
+    hourly = response.json()["hourly"]
+
+    rows = []
+    for i, timestamp in enumerate(hourly["time"]):
+        row = {
+            "location_key": location_key,
+            "observed_at": f"{timestamp}:00+00:00",
+            "source": "forecast_day1",
+            "boundary_layer_height": None,  # not available from previous runs
+        }
+        for var in FORECAST_VARS:
+            row[var] = hourly[f"{var}_previous_day1"][i]
+        rows.append(row)
+    return rows
