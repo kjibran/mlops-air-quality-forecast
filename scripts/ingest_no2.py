@@ -1,20 +1,11 @@
 import argparse
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from mlops_air_quality_forecast.config import settings
 from mlops_air_quality_forecast.openaq import fetch_no2_hours
 from mlops_air_quality_forecast.store import upsert_no2
-
-
-def month_windows(start: datetime, end: datetime):
-    """Split a date range into calendar-month chunks."""
-    current = start
-    while current < end:
-        next_month = (current.replace(day=1) + timedelta(days=32)).replace(day=1)
-        yield current, min(next_month, end)
-        current = next_month
-
+from mlops_air_quality_forecast.timewindows import month_windows
 
 parser = argparse.ArgumentParser(
     description="Fetch hourly NO2 from OpenAQ into the database."
