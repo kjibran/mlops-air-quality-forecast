@@ -87,3 +87,26 @@ def upsert_predictions(rows: list[dict]) -> int:
     with connect() as conn, conn.cursor() as cur:
         cur.executemany(UPSERT_PREDICTIONS, rows)
     return len(rows)
+
+
+VERIFICATION_SQL = """
+select p.horizon,
+       count(*) as n,
+       avg(abs(p.predicted_ugm3 - m.value_ugm3)) as mae
+from predictions p
+join no2_hourly m
+  on m.observed_at = p.target_time and m.sensor_id = %s
+where p.location_key = %s
+  and p.issue_time >= now() - make_interval(days => %s)
+  and m.value_ugm3 is not null
+group by p.horizon
+order by p.horizon
+"""
+
+
+def read_verification(sensor_id: int, location_key: str, days: int) -> list[tuple]:
+    """(horizon, number of verified forecasts, MAE) for forecasts from the last `days` days."""
+    with connect() as conn:
+        return conn.execute(
+            VERIFICATION_SQL, (sensor_id, location_key, days)
+        ).fetchall()

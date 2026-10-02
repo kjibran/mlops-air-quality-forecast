@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 
 from mlops_air_quality_forecast.config import settings
 from mlops_air_quality_forecast.db import connect
+from mlops_air_quality_forecast.store import read_verification
 
 app = FastAPI(
     title="Copenhagen NO2 Forecast API",
@@ -51,23 +52,7 @@ def latest_forecast():
 @app.get("/forecast/verification")
 def verification(days: int = Query(7, ge=1, le=90)):
     """How forecasts from the last `days` days compared with measured NO2, per horizon."""
-    with connect() as conn:
-        rows = conn.execute(
-            """
-            select p.horizon,
-                   count(*) as n,
-                   avg(abs(p.predicted_ugm3 - m.value_ugm3)) as mae
-            from predictions p
-            join no2_hourly m
-              on m.observed_at = p.target_time and m.sensor_id = %s
-            where p.location_key = %s
-              and p.issue_time >= now() - make_interval(days => %s)
-              and m.value_ugm3 is not null
-            group by p.horizon
-            order by p.horizon
-            """,
-            (settings.no2_sensor_id, settings.location_key, days),
-        ).fetchall()
+    rows = read_verification(settings.no2_sensor_id, settings.location_key, days)
     total = sum(r[1] for r in rows)
     overall = sum(r[1] * r[2] for r in rows) / total if total else None
     return {
