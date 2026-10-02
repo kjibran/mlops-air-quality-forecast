@@ -118,9 +118,9 @@
 
         .strip {
             display: grid;
-            grid-template-columns: repeat(24, minmax(50px, 1fr));
+            grid-template-columns: repeat(24, minmax(42px, 1fr));
             gap: 3px;
-            min-width: 860px;
+            min-width: 760px;
         }
 
         .slot {
@@ -153,7 +153,7 @@
 
         .cell .h {
             display: block;
-            font-size: 0.74rem;
+            font-size: 0.72rem;
             opacity: 0.8;
         }
 
@@ -322,6 +322,95 @@
             color: var(--muted);
         }
 
+        .facts {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: clamp(1.25rem, 3vw, 2.5rem);
+            border-top: 2px solid var(--ink);
+            padding-top: 1.1rem;
+        }
+
+        .facts h3 {
+            margin: 0 0 0.4rem;
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+
+        .facts p {
+            margin: 0;
+            font-size: 0.97rem;
+            line-height: 1.6;
+            color: var(--muted);
+        }
+
+        .levels {
+            margin-top: clamp(2rem, 5vw, 3rem);
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+            gap: clamp(1.25rem, 3vw, 2.5rem);
+            align-items: start;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        caption {
+            text-align: left;
+            font-weight: 700;
+            margin-bottom: 0.6rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.6rem 0.75rem 0.6rem 0;
+            border-bottom: 1px solid var(--line);
+            vertical-align: top;
+        }
+
+        thead th {
+            font-weight: 500;
+            color: var(--muted);
+        }
+
+        td.num {
+            font-variant-numeric: tabular-nums;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .table-note {
+            margin: 0.7rem 0 0;
+            font-size: 0.88rem;
+            color: var(--muted);
+        }
+
+        .advice h3 {
+            margin: 0 0 0.4rem;
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+
+        .advice p {
+            margin: 0 0 0.9rem;
+            font-size: 0.97rem;
+            line-height: 1.6;
+            color: var(--muted);
+        }
+
+        .disclaimer {
+            padding-left: 0.9rem;
+            border-left: 3px solid var(--line);
+            font-size: 0.9rem;
+        }
+
         footer {
             margin-top: clamp(4rem, 9vw, 6.5rem);
             padding: 2rem 0 3rem;
@@ -335,12 +424,18 @@
         }
 
         @media (max-width: 860px) {
-            .accuracy {
+
+            .accuracy,
+            .levels {
                 grid-template-columns: 1fr;
             }
 
             .steps {
                 grid-template-columns: 1fr 1fr;
+            }
+
+            .facts {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -391,9 +486,10 @@
 
             <section aria-labelledby="h-timeline">
                 <h2 id="h-timeline">The last two days and the next one</h2>
-                <p class="lede">Measured values lead into the current forecast. The shaded band shows the typical size
-                    of the forecast error. The dashed line shows what the model predicted six hours in advance, for
-                    hours that have since been measured.</p>
+                <p class="lede">Measured values lead into the current forecast. The gap before the forecast starts is
+                    the time measurements take to arrive, about three hours. The shaded band shows the typical size of
+                    the forecast error. The dashed line shows what the model predicted six hours in advance, for hours
+                    that have since been measured.</p>
                 <div class="chart-box"><canvas id="timeline" role="img"
                         aria-label="Measured NO2 over the last two days and the forecast for the next 24 hours"></canvas>
                 </div>
@@ -437,6 +533,81 @@
                             inputs.</p>
                     </li>
                 </ol>
+            </section>
+
+            <section aria-labelledby="h-about">
+                <h2 id="h-about">About NO₂</h2>
+                <p class="lede">Nitrogen dioxide is one of the main air pollutants in cities. It changes hour by hour
+                    with traffic and weather, which is what makes it worth forecasting.</p>
+                <div class="facts">
+                    <div>
+                        <h3>What it is</h3>
+                        <p>A reddish-brown gas formed when fuel burns at high temperature. Engines mostly emit nitrogen
+                            monoxide (NO), which turns into NO₂ within minutes as it reacts with ozone in the air. That
+                            is why levels are highest right next to busy roads and fall off quickly with distance.</p>
+                    </div>
+                    <div>
+                        <h3>Where it comes from</h3>
+                        <p>Road traffic is one of the major sources in cities. Levels rise in rush hours and on calm
+                            days when the air mixes poorly, and drop when the wind picks up.
+                        </p>
+                    </div>
+                    <div>
+                        <h3>Why it matters</h3>
+                        <p>High levels irritate the airways and can make asthma worse. Long-term exposure is linked to
+                            respiratory disease. Children, older people and people with asthma or heart and lung
+                            conditions are the most sensitive. NO₂ also helps form ozone and fine particles.</p>
+                    </div>
+                </div>
+
+                <div class="levels">
+                    <div>
+                        <div class="table-wrap">
+                            <table>
+                                <caption>Reference values for NO₂, in µg/m³</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col"></th>
+                                        <th scope="col">Annual average</th>
+                                        <th scope="col">24-hour average</th>
+                                        <th scope="col">1 hour</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <th scope="row">WHO guideline (2021)</th>
+                                        <td class="num">10</td>
+                                        <td class="num">25</td>
+                                        <td class="num">200</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">EU limit value today</th>
+                                        <td class="num">40</td>
+                                        <td>None</td>
+                                        <td class="num">200</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">EU limit value from 2030</th>
+                                        <td class="num">20</td>
+                                        <td class="num">50</td>
+                                        <td class="num">200</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="table-note">The WHO 24-hour value should not be exceeded on more than 3 to 4 days a
+                            year. Today the EU 1-hour limit may be exceeded up to 18 hours a year. From 2030 that falls
+                            to once a year, and the 24-hour limit may be exceeded up to 18 days a year.</p>
+                    </div>
+                    <div class="advice">
+                        <h3>Using the forecast</h3>
+                        <p>If you have asthma or another lung condition, the forecast can help you plan outdoor exercise
+                            for cleaner hours. Walking or cycling on quieter streets, even one block away from heavy
+                            traffic, also lowers what you breathe.</p>
+                        <p class="disclaimer">This page gives general information only. It is not medical advice. Follow
+                            guidance from your doctor or the health authorities.</p>
+                    </div>
+                </div>
             </section>
         </main>
 
@@ -490,6 +661,12 @@
             return "on " + fmtDayMonth.format(date);
         }
 
+        // "today (Fri 2 Oct)" for today and tomorrow, otherwise the full date once
+        function dayWithDate(date) {
+            const word = dayWord(date);
+            return word.startsWith("on ") ? word : `${word} (${fmtShortDate.format(date)})`;
+        }
+
         const tickLabel = ms => { const d = new Date(ms); return `${fmtWeekday.format(d)} ${fmtHour.format(d)}`; };
 
         const forecastMadeLine = {
@@ -524,7 +701,7 @@
             document.getElementById("subline").textContent =
                 `Average over the next 24 hours at ${STATION} in Copenhagen: ${Math.round(mean)} µg/m³. The WHO guideline for a 24-hour average is 25 µg/m³.`;
             document.getElementById("meta").textContent =
-                `Forecast made at ${fmtHour.format(issue)} ${dayWord(issue)} by model version ${data.model_version}. Page updated at ${fmtHour.format(updated)} ${dayWord(updated)}.`;
+                `Forecast made at ${fmtHour.format(issue)} ${dayWithDate(issue)} by model version ${data.model_version}. Page updated at ${fmtHour.format(updated)} ${dayWithDate(updated)}.`;
 
             const strip = document.getElementById("strip");
             strip.innerHTML = "";
