@@ -22,6 +22,9 @@ FEATURES = [
 
 FEATURES_NO_BLH = [f for f in FEATURES if f != "boundary_layer_height"]
 
+# The feature set used for production models. Change this to introduce a new model version.
+PRODUCTION_FEATURES = FEATURES_NO_BLH
+
 PARAMS = {
     "objective": "l1",
     "learning_rate": 0.05,
