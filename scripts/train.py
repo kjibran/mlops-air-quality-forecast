@@ -23,7 +23,7 @@ RUN_NAME = "lgbm-archive-weather"
 
 def git_commit() -> str:
     result = subprocess.run(
-        ["git", "rev-parse", "HEAD"], capture_output=True, text=True
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
     )
     return result.stdout.strip()
 
