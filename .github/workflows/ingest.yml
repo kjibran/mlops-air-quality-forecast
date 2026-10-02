@@ -1,0 +1,25 @@
+name: Hourly ingest
+
+on:
+  schedule:
+    - cron: "20 * * * *"  # every hour at 20 minutes past, UTC
+  workflow_dispatch:       # allows starting it by hand from the Actions tab
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        run: uv sync --locked --no-dev
+      - name: Update NO2 and weather
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
+        run: uv run --no-dev python scripts/update.py
