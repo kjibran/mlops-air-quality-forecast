@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     location_key: str = "station_5177"
     station_lat: float = 55.6983
     station_lon: float = 12.5533
+    hf_token: str = ""
+    hf_dataset_repo: str = "khajlk/copenhagen-air-quality-hourly"
 
 
 settings = Settings()

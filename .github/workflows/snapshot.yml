@@ -1,0 +1,25 @@
+name: Weekly data snapshot
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"  # every Monday at 03:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - name: Install dependencies
+        run: uv sync --locked --no-dev
+      - name: Publish snapshot to Hugging Face
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: uv run --no-dev python scripts/snapshot.py
