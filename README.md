@@ -73,10 +73,12 @@ Four scheduled workflows run the system:
 
 | Workflow | When | What it does |
 |---|---|---|
-| Hourly pipeline | Twice an hour | Ingests NO₂, background pollutants and weather, scores the next 24 hours with the champion model, rebuilds the dashboard |
+| Hourly pipeline | Every hour at :20 | Ingests NO₂, background pollutants and weather, scores the next 24 hours with the champion model, rebuilds the dashboard |
 | Weekly data snapshot | Monday 03:00 UTC | Exports the database to Parquet and tags a new version on Hugging Face |
 | Weekly retraining | After each snapshot | Trains a challenger, compares it with the champion, promotes it if clearly better, and writes a drift report |
 | Daily monitoring | Every day | Checks data freshness and live accuracy, and fails loudly if something is wrong |
+
+The hourly pipeline is started by an external scheduler ([cron-job.org](https://cron-job.org)) through GitHub's `workflow_dispatch` API, with a fine-grained token that can only start workflows in this repository. Scheduled runs on GitHub are best effort: in the first two days of operation they fired only every 3 to 6 hours, far from hourly. GitHub's own schedule stays in the workflow as a backup, and a `concurrency` group ensures runs from both triggers never overlap.
 
 ## How it works
 
